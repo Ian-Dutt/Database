@@ -67,20 +67,29 @@ int create_table(Database *db, const char *name, const char **columns, TYPES *ty
         delete_table(new_table);
         return -1;
     }
+
+    new_table->indices = calloc(cols, sizeof(size_t));
+    if(new_table->indices == NULL){
+        perror("Unable to allocate memory for column indices");
+        delete_table(new_table);
+        return -1;
+    }
+
     size_t row_size = 0;
     for(int i = 0; i < cols; ++i){
         new_table->types[i] = types[i];
+        new_table->indices[i] = row_size;
         row_size += types_sizes[types[i]];
     }
     // memcpy(new_table->types, types, cols *sizeof(int));
     new_table->row_size = row_size;
 
-    db->tables = realloc(db->tables, sizeof(Table) * (db->num_tables + 1));
-    if(new_table->types == NULL){
+    void *tmp= realloc(db->tables, sizeof(Table) * (db->num_tables + 1));
+    if(tmp == NULL){
         perror("Unable to allocate memory for new column types. This corrupted the memory address and the program is exiting");
-        delete_database(db);
-        exit(1);
+        return -1;
     }
+    db->tables = tmp;
     db->tables[db->num_tables] = new_table;
     // puts("Here create");
     db->num_tables++;
@@ -104,9 +113,9 @@ void print_table(FILE *out, Table *table){
         char *curr = table->rows[i];
         fputc('|', out);
         for(int j = 0; j < table->num_cols; ++j){
-            switch(table->types[i]){
+            switch(table->types[j]){
                 case INT:
-                    fprintf(out, " %32d |", *(int *)curr);
+                    fprintf(out, " %-32d |", *(int *)curr);
                     curr += types_sizes[INT];
                     break;
                 case LONG:
@@ -130,6 +139,27 @@ void print_table(FILE *out, Table *table){
     }
 }
 
+
+int get_column_int(Table *table, int row, const char *name, int *result){
+    if(row < 0 || row >= table->num_rows) return -1;
+
+    int col = -1;
+    for(int i = 0; i < table->num_cols; ++i){
+        if(strcmp(table->columns[i], name) == 0){
+            col = i;
+            break;
+        }
+    }
+
+    if(col == -1) return -1;
+
+    if(table->types[col] != INT) return -1;        
+
+    *result = *(int *)((char *)table->rows[row] + table->indices[col]); 
+
+    return 1;
+}
+
 Table *find_table(Database *db, const char *name){
     Table *table = NULL;
     for(int i = 0; i < db->num_tables; ++i){
@@ -141,24 +171,21 @@ Table *find_table(Database *db, const char *name){
     return table;
 }
 
-void *alloc_row(Database *db, const char *name){
-    Table *table = find_table(db, name);
-
+void *alloc_row(Table *table){
     if(table == NULL) return NULL;
 
     return calloc(1, table->row_size);
 }
 
-int insert_row(Database*db, const char *name, void *row){
-    Table *table = find_table(db, name);
-
+int insert_row(Table *table, void *row){
     if(table == NULL) return -1;
 
-    table->rows = realloc(table->rows, sizeof(void *) * (table->num_rows + 1));
-    if(table->rows == NULL){
+    void *tmp = realloc(table->rows, sizeof(void *) * (table->num_rows + 1));
+    if(tmp == NULL){
         fprintf(stderr, "Unable to add new row to the table\n");
-        exit(1);
+        return -1;
     }
+    table->rows = tmp; 
     table->rows[table->num_rows] = row;
     table->num_rows++;
 
@@ -169,24 +196,20 @@ void delete_database(Database *db){
     delete_tables(db->tables, db->num_tables);
     free(db);
 }
+
 void delete_table(Table *table){
     for(int j = 0; j < table->num_cols; ++j){
         free(table->columns[j]);
     }
-    // puts("Here");
     free(table->columns);
     for(int j = 0; j < table->num_rows; ++j){
         free(table->rows[j]);
     }
-    // puts("Here");
     free(table->rows);
-    // puts("Here");
     free(table->types);
-    // puts("Here");
     free(table->name);
-    // puts("Here");
+    free(table->indices);
     free(table);
-    // puts("Here");
 }
 void delete_tables(Table **tables, int num_tables){
     for(int i = 0; i < num_tables; ++i){

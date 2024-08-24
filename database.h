@@ -15,13 +15,14 @@ typedef enum _types{
 } TYPES;
 
 typedef struct _table{
+    char *name;
+    void **rows;
     char **columns;
     TYPES *types;
-    size_t row_size;
-    void **rows;
+    size_t *indices;
     int num_rows;
     int num_cols;
-    char *name;
+    size_t row_size;
 } Table;
 
 typedef struct _database{
@@ -55,8 +56,12 @@ void print_tables(FILE *out, Database *db);
 
 void print_table(FILE *out, Table *table);
 
-int insert_row(Database*db, const char *table_name, void *row);
+int insert_row(Table *table, void *row);
 
-void *alloc_row(Database *db, const char *name);
+void *alloc_row(Table *table);
+
+int get_column_int(Table *table, int row, const char *name, int *result);
+
+Table *find_table(Database *db, const char *name);
 
 #endif
