@@ -5,10 +5,12 @@
 #include <stdio.h>
 
 #define CHARS_SIZE 32
+#define MAX_COLUMNS 100
 
 typedef enum _types{
     INT,
     LONG,
+    DOUBLE,
     CHARS,
     CHAR,
     NONE_TYPE
@@ -35,6 +37,7 @@ typedef struct _database{
 size_t types_sizes[NONE_TYPE] = {
     sizeof(int),
     sizeof(long),
+    sizeof(double),
     sizeof(char) * CHARS_SIZE,
     sizeof(char),
 };
@@ -60,7 +63,11 @@ int insert_row(Table *table, void *row);
 
 void *alloc_row(Table *table);
 
-int get_column_int(Table *table, int row, const char *name, int *result);
+int get_column_int(Table *table, int row, int col, int *result);
+int get_column_long(Table *table, int row, int col, long *result);
+int get_column_double(Table *table, int row, int col, double *result);
+int get_column_char(Table *table, int row, int col, char *result);
+int get_column_chars(Table *table, int row, int col, char **result);
 
 Table *find_table(Database *db, const char *name);
 

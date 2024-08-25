@@ -25,6 +25,10 @@ typedef struct _table{
     size_t row_size;
 } Table;*/
 int create_table(Database *db, const char *name, const char **columns, TYPES *types, int cols){
+    if(find_table(db, name) != NULL){
+        perror("Tables with the same name is already created");
+        return -1;
+    }
     Table *new_table = calloc(1, sizeof(Table));
     if(new_table == NULL){
         perror("Unable to create table");
@@ -32,8 +36,12 @@ int create_table(Database *db, const char *name, const char **columns, TYPES *ty
     }
     
     // Columns
+    if(cols >= MAX_COLUMNS){
+        perror("Tried to allocate more columns than supported");
+        return -1;
+    }
     new_table->num_cols = cols;
-    new_table->columns = calloc(cols, sizeof(char *));
+    new_table->columns = calloc(MAX_COLUMNS, sizeof(char *));
     if(new_table->columns == NULL){
         perror("Unable to create columns");
         delete_table(new_table);
@@ -61,14 +69,14 @@ int create_table(Database *db, const char *name, const char **columns, TYPES *ty
     }
 
     // Types
-    new_table->types = calloc(cols, sizeof(TYPES));
+    new_table->types = calloc(MAX_COLUMNS, sizeof(TYPES));
     if(new_table->types == NULL){
         perror("Unable to allocate memory for column types");
         delete_table(new_table);
         return -1;
     }
 
-    new_table->indices = calloc(cols, sizeof(size_t));
+    new_table->indices = calloc(MAX_COLUMNS, sizeof(size_t));
     if(new_table->indices == NULL){
         perror("Unable to allocate memory for column indices");
         delete_table(new_table);
@@ -84,7 +92,7 @@ int create_table(Database *db, const char *name, const char **columns, TYPES *ty
     // memcpy(new_table->types, types, cols *sizeof(int));
     new_table->row_size = row_size;
 
-    void *tmp= realloc(db->tables, sizeof(Table) * (db->num_tables + 1));
+    void *tmp = realloc(db->tables, sizeof(Table) * (db->num_tables + 1));
     if(tmp == NULL){
         perror("Unable to allocate memory for new column types. This corrupted the memory address and the program is exiting");
         return -1;
@@ -119,9 +127,14 @@ void print_table(FILE *out, Table *table){
                     curr += types_sizes[INT];
                     break;
                 case LONG:
-                    fprintf(out, " %32ld |", *(long *)curr);
+                    fprintf(out, " %-32ld |", *(long *)curr);
                     curr += types_sizes[LONG];
                     break;
+                case DOUBLE:
+                    fprintf(out, " %-32.4f |", *(double *)curr);
+                    curr += types_sizes[LONG];
+                    break;
+
                 case CHARS:
                     fprintf(out, " %-32s |", curr);
                     curr += types_sizes[CHARS];
@@ -137,25 +150,61 @@ void print_table(FILE *out, Table *table){
         }
         fputc('\n', out);
     }
+    fputc('\n', out);
 }
 
 
-int get_column_int(Table *table, int row, const char *name, int *result){
+int get_column_int(Table *table, int row, int col, int *result){
     if(row < 0 || row >= table->num_rows) return -1;
-
-    int col = -1;
-    for(int i = 0; i < table->num_cols; ++i){
-        if(strcmp(table->columns[i], name) == 0){
-            col = i;
-            break;
-        }
-    }
-
-    if(col == -1) return -1;
+    if(col < 0 || col >= table->num_cols) return -1;
 
     if(table->types[col] != INT) return -1;        
 
     *result = *(int *)((char *)table->rows[row] + table->indices[col]); 
+
+    return 1;
+}
+
+int get_column_long(Table *table, int row, int col, long *result){
+    if(row < 0 || row >= table->num_rows) return -1;
+    if(col < 0 || col >= table->num_cols) return -1;
+
+    if(table->types[col] != LONG) return -1;        
+
+    *result = *(long *)((char *)table->rows[row] + table->indices[col]); 
+
+    return 1;
+}
+
+int get_column_double(Table *table, int row, int col, double *result){
+    if(row < 0 || row >= table->num_rows) return -1;
+    if(col < 0 || col >= table->num_cols) return -1;
+
+    if(table->types[col] != LONG) return -1;        
+
+    *result = *(double *)((char *)table->rows[row] + table->indices[col]); 
+
+    return 1;
+}
+
+int get_column_char(Table *table, int row, int col, char *result){
+    if(row < 0 || row >= table->num_rows) return -1;
+    if(col < 0 || col >= table->num_cols) return -1;
+
+    if(table->types[col] != CHAR) return -1;        
+
+    *result = *(char *)((char *)table->rows[row] + table->indices[col]); 
+
+    return 1;
+}
+
+int get_column_chars(Table *table, int row, int col, char **result){
+    if(row < 0 || row >= table->num_rows) return -1;
+    if(col < 0 || col >= table->num_cols) return -1;
+
+    if(table->types[col] != CHARS) return -1;        
+
+    *result = strndup(((char *)table->rows[row] + table->indices[col]), CHARS_SIZE);
 
     return 1;
 }

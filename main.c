@@ -31,10 +31,39 @@ int main(){
     *(int *)((char *)row + 64) = 10;
 
     insert_row(table, row);
-    int age;
-    if(get_column_int(table, 0, "Age", &age) == 1){
-        printf("Age of the person in row 1 is %d\n", age);
+    row = alloc_row(table);
+
+    if(row == NULL){
+        delete_database(db);
+        return 1;
     }
+
+    strcpy(row, "This is the first column");
+    strcpy((char *)row + 32, "This is the second column");
+    *(int *)((char *)row + 64) = 10;
+
+
+    insert_row(table, row);
+    
+    int cols2 = 3;
+    const char *columns2[] = {"Full Name", "Pay", "Time"};
+    TYPES types2[] = {CHARS, DOUBLE, INT};
+    create_table(db, "Jobs", columns2, types2, cols2);    
+    table = find_table(db, "Jobs");
+
+    row = alloc_row(table);
+
+    if(row == NULL){
+        delete_database(db);
+        return 1;
+    }
+
+    strcpy(row, "Ian A. Dutt");
+    *(double *)((char *)row + CHARS_SIZE) = 80510;
+    *(int *)((char *)row + CHARS_SIZE + sizeof(double)) = 10;
+
+
+    insert_row(table, row);
 
     print_tables(stdout, db);
 
