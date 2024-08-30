@@ -1,5 +1,5 @@
-#ifndef DATABASE
-#define DATABASE
+#ifndef __DATABASE__
+#define __DATABASE__
 
 #include <stdlib.h>
 #include <stdio.h>
