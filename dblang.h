@@ -2,6 +2,7 @@
 #define DB_LANG
 
 #include <stdio.h>
+#include <database.h>
 
 typedef enum e{
     CREATE,
@@ -22,6 +23,7 @@ typedef enum e{
     IDENTIFIER,
     SEP,
     TYPE_ID,
+    EXPR_END,
     NONE_ACT
 } Action;
 
@@ -39,5 +41,9 @@ typedef struct {
 Value *lexer(FILE *in, int *size);
 
 int interpret_lang(Value *lang, int size);
+
+void free_lang(Value *lang, int size);
+
+TYPES act_to_type(Action act);
 
 #endif

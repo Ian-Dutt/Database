@@ -140,7 +140,7 @@ void print_table(FILE *out, Table *table){
                     curr += types_sizes[CHARS];
                     break;
                 case CHAR:
-                    fprintf(out, "| %c                                |", *curr);
+                    fprintf(out, " %c                                |", *curr);
                     curr += types_sizes[CHAR];
                     break;
                 default:

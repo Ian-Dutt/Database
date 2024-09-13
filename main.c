@@ -15,10 +15,10 @@ int main(){
     int size;
     Value *values = lexer(in, &size);
 
-    for(int i = 0; i < size; ++i){
-        printf("%d,", values[i].act);
-    }
-    puts(".");
+    interpret_lang(values, size);
+
+    fclose(in);
+    free_lang(values, size);
 
     //Database *db = create_database("Test");
     //// FILE *fp = fopen("database.db", "w");
