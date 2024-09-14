@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #define INIT_DB_CONSTS
@@ -99,7 +100,7 @@ int create_table(Database *db, const char *name, const char **columns, TYPES *ty
     }
     db->tables = tmp;
     db->tables[db->num_tables] = new_table;
-    // puts("Here create");
+    // //puts("Here create");
     db->num_tables++;
 
     return 1;
@@ -242,6 +243,7 @@ int insert_row(Table *table, void *row){
 }
 
 void delete_database(Database *db){
+    if(db == NULL) return;
     delete_tables(db->tables, db->num_tables);
     free(db);
 }
@@ -265,4 +267,123 @@ void delete_tables(Table **tables, int num_tables){
         delete_table(tables[i]);
     }
     free(tables);
+}
+
+int save_table(FILE *db_file, Table *table){
+    //puts(table->name);
+    size_t string_len = strlen(table->name);
+    // char *name;
+    fwrite(&string_len, sizeof(size_t), 1 ,db_file);
+    fwrite(table->name, sizeof(char), string_len, db_file);
+    // size_t row_size;
+    fwrite(&table->row_size, sizeof(size_t), 1, db_file);
+    // int num_rows;
+    fwrite(&table->num_rows, sizeof(int), 1, db_file);
+    // int num_cols;
+    fwrite(&table->num_cols, sizeof(int), 1, db_file);
+    // void **rows;
+    for(int i = 0; i < table->num_rows; ++i){
+        fwrite(table->rows[i], table->row_size, 1, db_file);
+    }
+
+    // char **columns;
+    for(int i = 0; i < table->num_cols; ++i){
+        string_len = strlen(table->columns[i]);
+        fwrite(&string_len, sizeof(size_t), 1 ,db_file);
+        fwrite(table->columns[i], sizeof(char), string_len, db_file);
+    }
+
+    fwrite(table->types, sizeof(TYPES), table->num_cols, db_file);
+
+    fwrite(table->indices, sizeof(size_t), table->num_cols, db_file);
+
+    return 1;
+}
+
+void save_database(Database *db){
+    char tmp[64];
+    strcpy(tmp, db->name);
+    strcat(tmp, ".db");
+    FILE *db_file = fopen(tmp, "wb");
+    if(db_file == NULL){
+        perror("Unable to open the database file");
+        return;
+    }
+    size_t string_len = strlen(db->name);
+    //puts("Here");
+    fwrite(&string_len, sizeof(size_t), 1 ,db_file);
+    fwrite(db->name, sizeof(char), string_len, db_file);
+    fwrite(&db->num_tables, sizeof(int), 1, db_file);
+    //puts("Here");
+
+    for(int i = 0; i < db->num_tables; ++i){
+        //puts("Here");
+        save_table(db_file, db->tables[i]);
+    }
+
+    fclose(db_file);
+}
+
+
+Database *read_database(const char *file){
+    Database *new_db = NULL;
+
+    FILE *db_file = fopen(file, "rb");
+    if(db_file == NULL){
+        perror("Unable to open file");
+        return NULL;
+    }
+    new_db = malloc(sizeof(Database));
+    assert(new_db);
+
+    size_t string_len = 0;
+    fread(&string_len, sizeof(size_t), 1, db_file);
+    new_db->name = calloc(sizeof(char), (string_len + 1));
+    assert(new_db->name);
+    fread(new_db->name, sizeof(char), string_len, db_file);
+    fread(&new_db->num_tables, sizeof(int), 1, db_file);
+    new_db->tables = malloc(sizeof(Table));
+    assert(new_db->tables);
+
+    for(int i = 0; i < new_db->num_tables; ++i){
+        new_db->tables[i] = malloc(sizeof(Table));
+        Table *curr = new_db->tables[i];
+        assert(curr);
+        fread(&string_len, sizeof(size_t), 1, db_file);
+        curr->name = calloc(sizeof(char), (string_len + 1));
+        assert(curr->name);
+        fread(curr->name, sizeof(char), string_len, db_file);
+
+        // rowsize numrows columns
+        fread(&curr->row_size, sizeof(size_t), 1, db_file);
+        fread(&curr->num_rows, sizeof(int), 1, db_file);
+        fread(&curr->num_cols, sizeof(int), 1, db_file);
+
+        curr->columns = malloc(curr->num_cols * sizeof(char *));
+        assert(curr->columns);
+        curr->types = malloc(curr->num_cols * sizeof(TYPES));
+        assert(curr->types);
+        curr->indices = malloc(curr->num_cols * sizeof(size_t));
+        assert(curr->indices);
+        curr->rows = malloc(curr->num_rows * sizeof(void *));
+        assert(curr->rows);
+
+        for(int i = 0; i < curr->num_rows; ++i){
+            curr->rows[i] = malloc(curr->row_size);
+            assert(curr->rows[i]);
+            fread(curr->rows[i], curr->row_size, 1, db_file);
+        }
+
+        for(int i = 0; i < curr->num_cols; ++i){
+            fread(&string_len, sizeof(size_t), 1, db_file);
+            curr->columns[i] = calloc(sizeof(char), string_len + 1);
+            assert(curr->columns[i]);
+            fread(curr->columns[i], sizeof(char), string_len, db_file);
+        }
+
+        fread(curr->types, sizeof(TYPES), curr->num_cols, db_file);
+
+        fread(curr->indices, sizeof(size_t), curr->num_cols, db_file);
+    }
+    return new_db;
 }

@@ -4,9 +4,13 @@
 #include "database.h"
 #include "dblang.h"
 
-int main(){
+int main(int argc, char **argv){
+    if(argc != 2){
+        puts("./database [input_file]");
+        return 1;
+    }
 
-    FILE *in = fopen("sample.txt", "r");
+    FILE *in = fopen(argv[1], "r");
     if(in == NULL){ 
         perror("Unable to open the file"); 
         return 1;
@@ -19,7 +23,6 @@ int main(){
 
     fclose(in);
     free_lang(values, size);
-
     //Database *db = create_database("Test");
     //// FILE *fp = fopen("database.db", "w");
     //// if(fp == NULL){

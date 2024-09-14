@@ -71,4 +71,8 @@ int get_column_chars(Table *table, int row, int col, char **result);
 
 Table *find_table(Database *db, const char *name);
 
+void save_database(Database *db);
+
+Database *read_database(const char *file);
+
 #endif

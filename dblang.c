@@ -33,6 +33,8 @@ Action get_action_from_str(const char *str){
     else if(strcmp(str, "INSERT") == 0) result = INSERT;
     else if(strcmp(str, "ROW") == 0) result = ROW;
     else if(strcmp(str, "SHOW") == 0) result = SHOW;
+    else if(strcmp(str, "SAVE") == 0) result = SAVE;
+    else if(strcmp(str, "READ") == 0) result = READ;
     else if(strcmp(str, ":-") == 0) result = SEP;
     else if(strchr(str, '=') != NULL) result = TYPE_ID;
     else if(strcmp(str, ";") == 0) result = EXPR_END;
@@ -79,15 +81,15 @@ int get_value_from_action(Value *value, char *buffer){
 
 }
 
-Value *add_value(Value *values, int *index, int capacity, char *buffer){
+Value *add_value(Value *values, int *index, int *capacity, char *buffer){
     // puts(buffer);
     Value new_value = {0};
     new_value.act = get_action_from_str(buffer);
     get_value_from_action(&new_value, buffer);
 
-    if(*index >= capacity){
-        capacity = capacity * 2;
-        void *tmp = realloc(values, capacity * sizeof(Value));
+    if(*index >= *capacity){
+        *capacity = *capacity * 2;
+        void *tmp = realloc(values, *capacity * sizeof(Value));
         if(tmp == NULL){
             perror("Unable to create room for the program");
             free(values);
@@ -117,19 +119,19 @@ Value *lexer(FILE *in, int *size){
                 continue;
             }
             i = 0;
-            values = add_value(values, &index, capacity, buffer);
+            values = add_value(values, &index, &capacity, buffer);
         }else if(c == '"'){
             // if(buffer[0] == '\0') perror("Something went wrong, ");
             buffer[i++] = '"';
             while((c = fgetc(in)) != EOF && c != '"') buffer[i++] = c;
             buffer[i++] = '"';
-            values = add_value(values, &index, capacity, buffer);
+            values = add_value(values, &index, &capacity, buffer);
             i = 0;
         }else{
             buffer[i++] = c;
         }
     }
-    values = add_value(values, &index, capacity, buffer);
+    values = add_value(values, &index, &capacity, buffer);
     *size = index;
     return values;
 }
@@ -296,7 +298,7 @@ int interpret_lang(Value *lang, int size){
             // print_tables(stdout, db);
         }break;
         case SHOW:{
-            if(i + 1 > size){
+            if(i + 1 >= size){
                 perror("SHOW requires 1 argument");
                 return -1;
             }
@@ -315,6 +317,29 @@ int interpret_lang(Value *lang, int size){
             }
             i += 1;
         }break;
+        case SAVE:{
+            if(db == NULL){
+                perror("You have to load a database before you can save it");
+                return -1;
+            }
+
+            save_database(db);
+        } break;
+        case READ:{
+            if(i + 1 >= size){
+                perror("SAVE expects one token");
+                return -1;
+            }
+
+            if(lang[i + 1].act != IDENTIFIER){
+                perror("SHOW expects an IDENTIFIER but got something else");
+                return -1;
+            }
+
+            if(db) delete_database(db);
+
+            db = read_database(lang[i + 1].string);
+        } break;
         default:
             break;
         }
