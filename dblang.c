@@ -307,7 +307,10 @@ int interpret_lang(Value *lang, int size){
                 perror("SHOW expects an identifier");
                 return -1;
             }
-
+            if(strcmp(lang[i + 1].string, "ALL") == 0){
+                print_tables(stdout, db);
+                break;
+            }
             Table *table = find_table(db, lang[i + 1].string);
 
             if(table == NULL){
