@@ -32,6 +32,7 @@ Action get_action_from_str(const char *str){
     else if(strcmp(str, "LONG") == 0) result = TYPE_LONG;
     else if(strcmp(str, "INSERT") == 0) result = INSERT;
     else if(strcmp(str, "ROW") == 0) result = ROW;
+    else if(strcmp(str, "SHOW") == 0) result = SHOW;
     else if(strcmp(str, ":-") == 0) result = SEP;
     else if(strchr(str, '=') != NULL) result = TYPE_ID;
     else if(strcmp(str, ";") == 0) result = EXPR_END;
@@ -202,7 +203,7 @@ int interpret_lang(Value *lang, int size){
             }
 
             break;
-        case INSERT:
+        case INSERT:{
             if(i + 5 >= size){
                 perror("Not enough arguments for INSERT operation");
                 return -1;
@@ -292,8 +293,28 @@ int interpret_lang(Value *lang, int size){
             }
 
             insert_row(table, row);
-            print_tables(stdout, db);
-            break;
+            // print_tables(stdout, db);
+        }break;
+        case SHOW:{
+            if(i + 1 > size){
+                perror("SHOW requires 1 argument");
+                return -1;
+            }
+
+            if(lang[i + 1].act != IDENTIFIER){
+                perror("SHOW expects an identifier");
+                return -1;
+            }
+
+            Table *table = find_table(db, lang[i + 1].string);
+
+            if(table == NULL){
+                perror("Unable to find to table");
+            }else{
+                print_table(stdout, table);               
+            }
+            i += 1;
+        }break;
         default:
             break;
         }

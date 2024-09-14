@@ -7,6 +7,7 @@
 typedef enum e{
     CREATE,
     DATABASE,
+    SHOW,
     TABLE,
     INSERT,
     TYPE_INT,
