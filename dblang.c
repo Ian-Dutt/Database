@@ -1,4 +1,3 @@
-#include "dblang.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,12 +52,12 @@ int get_value_from_action(Value *value, char *buffer){
         type++;
 
         value->type_id.type = get_action_from_str(type);
-        value->type_id.id = strdup(buffer);
+        value->type_id.id = c_strdup(buffer);
         if(value->type_id.id == NULL){
             perror("Unable to allocate new type id");
         }
     }else if(value->act == VALUE_CHARS){
-        value->string = strndup(buffer + 1, strlen(buffer) - 2);
+        value->string = c_strndup(buffer + 1, strlen(buffer) - 2);
         if(value->string == NULL){
             perror("Unable to allocate new string");
         }
@@ -72,7 +71,7 @@ int get_value_from_action(Value *value, char *buffer){
         value->number = strtof(buffer, &end);
 
         if(*end != '\0'){
-            value->string = strdup(buffer);
+            value->string = c_strdup(buffer);
             if(value->string == NULL){
                 perror("Unable to allocate new identifier");
             }
@@ -140,9 +139,41 @@ Value *lexer(FILE *in, int *size){
     return values;
 }
 
-int interpret_lang(Value *lang, int size){
+Value *str_lexer(const char *str, int *size){
+    char buffer[128] = {0};
+    int c;
     int i = 0;
-    Database *db = NULL;
+    int j = 0;
+    int capacity = 20;
+    int index = 0;
+    Value *values = c_malloc(sizeof(Value) * 20);
+    while((c = str[j++]) != '\0'){
+        // Read until a space/newline
+        if(isspace(c)){
+            // check if the previous one was empty
+            if(i == 0){
+                continue;
+            }
+            i = 0;
+            values = add_value(values, &index, &capacity, buffer);
+        }else if(c == '"'){
+            // if(buffer[0] == '\0') perror("Something went wrong, ");
+            buffer[i++] = '"';
+            while((c = str[j++]) != '\0' && c != '"') buffer[i++] = c;
+            buffer[i++] = '"';
+            values = add_value(values, &index, &capacity, buffer);
+            i = 0;
+        }else{
+            buffer[i++] = c;
+        }
+    }
+    values = add_value(values, &index, &capacity, buffer);
+    *size = index;
+    return values;  
+}
+
+void *interpret_lang(Database *db, Value *lang, int size){
+    int i = 0;
     for(i = 0; i < size; ++i){
         Value *current = &lang[i];
         switch (current->act)
@@ -150,33 +181,32 @@ int interpret_lang(Value *lang, int size){
         case CREATE:
             if(i + 1 >= size){
                 perror("CREATE expects 1 or more arguments");
-                return -1;
+                return db;
             }
 
             if(lang[i + 1].act == DATABASE){
                 if(i + 2 >= size){
                     perror("CREATE DATABASE expects 1 or more arguments");
-                    return -1;
+                    return db;
                 }
                 db = create_database(lang[i + 2].string);
                 i += 2;
             }else if(lang[i + 1].act == TABLE){
                 if(i + 5 >= size){
                     perror("usage: CREATE TABLE TableName :- ColName=TYPE ... ;");
-                    return -1;
+                    return db;
                 }
-                // int create_table(Database *db, const char *name, const char **columns, TYPES *types, int num_cols);
 
                 if(db == NULL){
                     perror("No database chosen");
-                    return -1;
+                    return db;
                 }
                 
                 int table_size = 0;
                 for(int j = i + 4; table_size < size && lang[j].act != EXPR_END; ++table_size, j++){
                     if(lang[j].act != TYPE_ID){
                         printf("%d is not a valid type id\n", lang[j].act);
-                        return -1;
+                        return db;
                     }
                 }
                 // printf("table_size: %d\n",table_size);
@@ -185,12 +215,12 @@ int interpret_lang(Value *lang, int size){
 
                 if(types == NULL){
                     perror("Unable to allocate memory for types\n");
-                    return -1;
+                    return db;
                 }
                 char **columns = c_malloc(sizeof(char *) * table_size);
                 if(columns == NULL){
                     perror("Unable to allocate memory for columns\n");
-                    return -1;
+                    return db;
                 }
                 int k;
                 for(i = i + 4, k = 0; k < table_size; ++k, ++i){
@@ -200,42 +230,41 @@ int interpret_lang(Value *lang, int size){
 
                 create_table(db, table_name, (const char **)columns, types, table_size);
 
-                // print_tables(stdout, db);
                 c_free(types);
                 c_free(columns);
             }else{
                 perror("Invalid CREATE command");
-                return -1;
+                return db;
             }
 
             break;
         case INSERT:{
             if(i + 5 >= size){
                 perror("Not enough arguments for INSERT operation");
-                return -1;
+                return db;
             }
 
             if(lang[i + 1].act != ROW){
                 perror("INSERT expects ROW as second argument");
-                return -1;
+                return db;
             }
 
             if(lang[i + 2].act != IDENTIFIER){
                 perror("INSERT expects Table Name as third argument");
-                return -1;
+                return db;
             }
 
             Table *table = find_table(db, lang[i + 2].string);
 
             if(table == NULL){
                 printf("Table '%s' is hot present in the database\n", lang[i + 2].string);
-                return -1;
+                return db;
             }
 
             char *row = alloc_row(table);
             if(row == NULL){
                 perror("Unable to allocate table row");
-                return -1;
+                return db;
             }
             int offset = 0;
             i = i + 4;
@@ -245,11 +274,11 @@ int interpret_lang(Value *lang, int size){
                         if(DOUBLE != act_to_type(lang[i].act)){
                             printf("%d\n", lang[i].act);
                             perror("Expected INT but got something else");
-                            return -1;
+                            return db;
                         }
                         if(floor(lang[i].number) != lang[i].number){
                             perror("Unable to convert double into int");
-                            return -1;
+                            return db;
                         }
                         *((int *)(row  + offset)) =  (int)lang[i].number;
                         offset += types_sizes[INT];
@@ -257,11 +286,11 @@ int interpret_lang(Value *lang, int size){
                     case LONG:
                         if(DOUBLE != act_to_type(lang[i].act)){
                             perror("Expected LONG but got something else");
-                            return -1;
+                            return db;
                         }
                         if(floor(lang[i].number) != lang[i].number){
                             perror("Unable to convert double into long");
-                            return -1;
+                            return db;
                         }
                         *((long *)(row  + offset)) =  (long)lang[i].number;
                         offset += types_sizes[LONG];
@@ -269,47 +298,43 @@ int interpret_lang(Value *lang, int size){
                     case DOUBLE:
                         if(DOUBLE != act_to_type(lang[i].act)){
                             perror("Expected DOUBLE but got something else");
-                            return -1;
+                            return db;
                         }
                         *((double *)(row  + offset)) = lang[i].number;
                         offset += types_sizes[DOUBLE];
                         break;
                     case CHAR:
                         if(CHAR != act_to_type(lang[i].act)){
-                            printf("%d\n", lang[i].act);
                             perror("Expected CHAR but got something else");
-                            return -1;
+                            return db;
                         }
                         *((char *)(row + offset)) = *(lang[i].string);
                         offset += types_sizes[CHAR];
                         break;
                     case CHARS:
                         if(CHARS != act_to_type(lang[i].act)){
-                            printf("%d\n", lang[i].act);
                             perror("Expected CHARS but got something else");
-                            return -1;
+                            return db;
                         }
                         strcpy((char *)(row + offset), lang[i].string);
                         offset += types_sizes[CHARS];
                         break;
                     case NONE_TYPE:
                         puts("No type");
-                        // return -1;
                 }
             }
 
             insert_row(table, row);
-            // print_tables(stdout, db);
         }break;
         case SHOW:{
             if(i + 1 >= size){
                 perror("SHOW requires 1 argument");
-                return -1;
+                return db;
             }
 
             if(lang[i + 1].act != IDENTIFIER){
                 perror("SHOW expects an identifier");
-                return -1;
+                return db;
             }
             if(strcmp(lang[i + 1].string, "ALL") == 0){
                 print_tables(stdout, db);
@@ -327,7 +352,7 @@ int interpret_lang(Value *lang, int size){
         case SAVE:{
             if(db == NULL){
                 perror("You have to load a database before you can save it");
-                return -1;
+                return db;
             }
 
             save_database(db);
@@ -335,12 +360,12 @@ int interpret_lang(Value *lang, int size){
         case READ:{
             if(i + 1 >= size){
                 perror("SAVE expects one token");
-                return -1;
+                return db;
             }
 
             if(lang[i + 1].act != IDENTIFIER){
                 perror("SHOW expects an IDENTIFIER but got something else");
-                return -1;
+                return db;
             }
 
             if(db) delete_database(db);
@@ -350,12 +375,12 @@ int interpret_lang(Value *lang, int size){
         case FROM:{
             if(i + 4 >= size){
                 perror("FROM expects atleast 5 types of arguments");
-                return -1;
+                return NULL;
             }
 
             if(lang[i + 1].act != IDENTIFIER){
                 perror("Second argument of FROM should be an IDENTIFIER");
-                return -1;
+                return NULL;
             }
 
             if(lang[i + 2].act == GET){
@@ -366,45 +391,49 @@ int interpret_lang(Value *lang, int size){
                 char **column_names = c_alloc(j + 1, sizeof(char *));
                 if(column_names == NULL){
                     perror("Could not allocate column names");
-                    return -1;
+                    return NULL;
                 }
                 for(int k = 0; k < j; ++k){
                     column_names[k] = lang[k + i + 3].string;
                 }
 
-                Result result = get_columns(db, lang[i + 1].string, column_names);
+                Result *result = get_columns(db, lang[i + 1].string, column_names);
                 printf("|");
-                for(size_t l = 0; l < result.cols; ++l){
+                for(size_t l = 0; l < result->cols; ++l){
                     printf(" %-32s |", column_names[l]);
                 }
                 printf("\n");
-                for(size_t k = 0; k < result.len; ++k){
-                    char *curr = result.data[k];
+                for(size_t k = 0; k < result->len; ++k){
+                    char *curr = result->data[k];
                     printf("|");
-                    for(size_t l = 0; l < result.cols; ++l){
-                        printf(" %-32s |", type_to_str(curr, result.types[l]));
-                        curr += types_sizes[result.types[l]];
+                    for(size_t l = 0; l < result->cols; ++l){
+                        printf(" %-32s |", type_to_str(curr, result->types[l]));
+                        curr += types_sizes[result->types[l]];
                     }
                     printf("\n");
                 }
-                c_free(result.types);
-                c_free(column_names);
-                for(size_t l = 0; l < result.len; ++l){
-                    c_free(result.data[l]);
-                }
-                c_free(result.data);
+
+                return result;
 
             }else{
                 perror("Unable to find FROM action");
-                return -1;
+                return NULL;
             }
         }
         default:
             break;
         }
     }
-    delete_database(db);
-    return -1;
+    return db;
+}
+
+void *db_command(Database *db, const char *command){
+   int size;
+   Value *values = str_lexer(command, &size);
+   void *result = interpret_lang(db, values, size);
+   free_lang(values, size);
+   
+   return result;
 }
 
 

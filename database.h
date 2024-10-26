@@ -39,8 +39,47 @@ typedef struct result
     size_t cols;
     void **data;
     TYPES *types;
+    char **col_names;
 } Result;
 
+typedef enum e{
+    CREATE,
+    DATABASE,
+    SHOW,
+    SAVE,
+    READ,
+    FROM,
+    GET,
+    TABLE,
+    INSERT,
+    TYPE_INT,
+    TYPE_DOUBLE,
+    TYPE_CHAR,
+    TYPE_CHARS,
+    TYPE_LONG,
+    VALUE_INT,
+    VALUE_DOUBLE,
+    VALUE_CHAR,
+    VALUE_CHARS,
+    VALUE_LONG,
+    ROW,
+    IDENTIFIER,
+    SEP,
+    TYPE_ID,
+    EXPR_END,
+    NONE_ACT
+} Action;
+
+typedef struct {
+    Action act;
+    double number;
+    char *string;
+    struct pair {
+        Action type;
+        char *id;
+    } type_id;
+    
+} Value;
 
 #ifdef INIT_DB_CONSTS
 size_t types_sizes[NONE_TYPE] = {
@@ -57,6 +96,8 @@ extern size_t types_sizes[NONE_TYPE];
 Database *create_database(char *handle);
 
 void delete_database(Database *db);
+
+void delete_result(Result *res);
 
 int create_table(Database *db, const char *name, const char **columns, TYPES *types, int num_cols);
 
@@ -84,14 +125,21 @@ void save_database(Database *db);
 
 Database *read_database(const char *file);
 
-Result get_columns(Database *db , const char *table, char **columns); // Columns is null terminated
+Result *get_columns(Database *db , const char *table, char **columns); // Columns is null terminated
 
 const char *type_to_str(void *data, TYPES type);
 
-#if defined(_WIN32) || defined(WIN32)
+Value *lexer(FILE *in, int *size);
 
-char *strdup(const char *);
-char *strndup(const char *, size_t);
-#endif
+void *interpret_lang(Database *db, Value *lang, int size);
+
+void *db_command(Database *db, const char *command);
+
+void free_lang(Value *lang, int size);
+
+TYPES act_to_type(Action act);
+
+char *c_strdup(const char *);
+char *c_strndup(const char *, size_t);
 
 #endif

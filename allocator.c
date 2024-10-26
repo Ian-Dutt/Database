@@ -16,7 +16,7 @@ static int blocks_size = 0;
 static FILE *log_out = NULL;
 AllocStats stats = {0};
 
-#define log_file log_out
+#define log_file ((log_out == NULL) ? stderr : log_out)
 
 void set_log_file(){
     if(log_out != NULL){
@@ -30,9 +30,9 @@ void set_log_file(){
 }
 
 void close_log_file(){
-    if(log_out != NULL){
+    if(log_out != stderr){
         fclose(log_out);
-        log_out = NULL;
+        log_out = stderr;
     }
 }
 
@@ -69,13 +69,14 @@ LinkedList *new_node(){
 
 void *_c_alloc(size_t len, size_t size, int line, const char *function){
     if(log_file == NULL){
-        set_log_file();
+      fprintf(stderr, "Unable to use full capability of custom allocator when log file is not set\n Please put set_log_file(); at the top of main\nAnd close_log_file(); at the end of main\n");
     }
+
     Alloced *new_block = &(new_node()->value);
     void *memory = calloc(len, size);
 
     if(memory == NULL){
-        fprintf(stderr, "Unable to allocate chunck of size %u in %s at line %d\n", len * size, function, line);
+        fprintf(stderr, "Unable to allocate chunck of size %zu in %s at line %d\n", len * size, function, line);
         close_log_file();
         exit(1);
     }
@@ -84,7 +85,7 @@ void *_c_alloc(size_t len, size_t size, int line, const char *function){
     new_block->line = line;
     new_block->function = function;
     stats.allocated += new_block->size;
-    fprintf(log_file, "%s:%d allocated block [%p] with a size of %u\n", function, line, memory, new_block->size);
+    fprintf(log_file, "%s:%d allocated block [%p] with a size of %zu\n", function, line, memory, new_block->size);
     return memory;
 }
 
@@ -102,11 +103,11 @@ void *_c_realloc(void *memory, size_t len, size_t size, int line, const char *fu
     void *rememory = realloc(memory, len * size);
     if(rememory == NULL){
         c_free(memory);
-        fprintf(stderr, "Unable to reallocate chunck of size %u in %s at line %d\n", len * size, function, line);
+        fprintf(stderr, "Unable to reallocate chunck of size %zu in %s at line %d\n", len * size, function, line);
         close_log_file();
         exit(1);
     }
-    fprintf(log_file, "%s:%d reallocated block [0x%x] with a size of %u to [%p] with a size of %u\n", function, line, prev_loc, new_block->size, rememory, len * size);
+    fprintf(log_file, "%s:%d reallocated block [0x%lx] with a size of %zu to [%p] with a size of %zu\n", function, line, prev_loc, new_block->size, rememory, len * size);
     new_block->memory = rememory;
     new_block->size = len * size;
     new_block->line = line;
@@ -122,7 +123,7 @@ void _c_free(void *memory, int line, const char *function){
         free(memory);
         return;
     }
-    fprintf(log_file, "%s:%d freeing block [%p] with size of %u\n", function, line, memory, index->value.size);
+    fprintf(log_file, "%s:%d freeing block [%p] with size of %zu\n", function, line, memory, index->value.size);
     if(index == head){
         head = index->next;
     }
@@ -145,14 +146,14 @@ const AllocStats *alloc_stats(){
     stats.inuse = stats.allocated - stats.freed;
     fprintf(log_file,
         "Custom Allocator Information\n"
-        "  Memory Allocated: %u\n"
-        "  Memory Free'd: %u\n"
-        "  Memory In Use: %u\n"
+        "  Memory Allocated: %zu\n"
+        "  Memory Free'd: %zu\n"
+        "  Memory In Use: %zu\n"
         "  Blocks In Use:\n",
         stats.allocated, stats.freed, stats.inuse);
     LinkedList *tmp;
     for(tmp = head; tmp; tmp = tmp->next){
-        fprintf(log_file, "    Block [%p] of size %u allocated by %s:%d\n", tmp->value.memory, tmp->value.size, tmp->value.function, tmp->value.line);
+        fprintf(log_file, "    Block [%p] of size %zu allocated by %s:%d\n", tmp->value.memory, tmp->value.size, tmp->value.function, tmp->value.line);
     }
     fprintf(log_file, "End Custom Alllocator Information\n");
     return (const AllocStats *const)(&stats);
