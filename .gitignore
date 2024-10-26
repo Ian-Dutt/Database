@@ -2,7 +2,6 @@ vscode/*
 *.json
 *.o
 database
-*.db
 *log
 libdatabase.dll
 make.ps1
