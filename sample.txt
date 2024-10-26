@@ -1,0 +1,9 @@
+CREATE DATABASE Persons
+CREATE TABLE Name :- First=CHARS Last=CHARS Middle=CHAR Age=INT ;
+INSERT ROW Name :- "Johnathan" "Charles" 'J' 10 ;
+INSERT ROW Name :- "James" "Charles" 'J' 33 ;
+INSERT ROW Name :- "Ian" "Dutt" 'A' 22 ;
+
+
+SHOW Name
+SAVE

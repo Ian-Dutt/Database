@@ -1,0 +1,9 @@
+READ Persons.db
+
+CREATE TABLE Job :- Position=CHARS Pay=DOUBLE ;
+INSERT ROW Job :- "Teacher" 2.0 ;
+
+SHOW Name
+SHOW Job
+
+SAVE

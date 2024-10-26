@@ -3,7 +3,6 @@ vscode/*
 *.o
 database
 *.db
-*.txt
 *log
 libdatabase.dll
 make.ps1
