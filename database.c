@@ -5,11 +5,13 @@
 #define INIT_DB_CONSTS
 #include "database.h"
 #undef INIT_DB_CONSTS
+#define USE_CUSTOM_ALLOC
+#include "allocator.h"
 
 Database *create_database(char *handle){
     /* Database *db = link_stored_database(handle); */
 
-    Database *db = malloc(sizeof(Database));
+    Database *db = c_malloc(sizeof(Database));
     if(db == NULL){
         perror("Unable to create database");
         exit(1);
@@ -30,7 +32,7 @@ int create_table(Database *db, const char *name, const char **columns, TYPES *ty
         perror("Tables with the same name is already created");
         return -1;
     }
-    Table *new_table = calloc(1, sizeof(Table));
+    Table *new_table = c_alloc(1, sizeof(Table));
     if(new_table == NULL){
         perror("Unable to create table");
         return -1;
@@ -42,7 +44,7 @@ int create_table(Database *db, const char *name, const char **columns, TYPES *ty
         return -1;
     }
     new_table->num_cols = cols;
-    new_table->columns = calloc(MAX_COLUMNS, sizeof(char *));
+    new_table->columns = c_alloc(MAX_COLUMNS, sizeof(char *));
     if(new_table->columns == NULL){
         perror("Unable to create columns");
         delete_table(new_table);
@@ -70,14 +72,14 @@ int create_table(Database *db, const char *name, const char **columns, TYPES *ty
     }
 
     // Types
-    new_table->types = calloc(MAX_COLUMNS, sizeof(TYPES));
+    new_table->types = c_alloc(MAX_COLUMNS, sizeof(TYPES));
     if(new_table->types == NULL){
         perror("Unable to allocate memory for column types");
         delete_table(new_table);
         return -1;
     }
 
-    new_table->indices = calloc(MAX_COLUMNS, sizeof(size_t));
+    new_table->indices = c_alloc(MAX_COLUMNS, sizeof(size_t));
     if(new_table->indices == NULL){
         perror("Unable to allocate memory for column indices");
         delete_table(new_table);
@@ -93,7 +95,7 @@ int create_table(Database *db, const char *name, const char **columns, TYPES *ty
     // memcpy(new_table->types, types, cols *sizeof(int));
     new_table->row_size = row_size;
 
-    void *tmp = realloc(db->tables, sizeof(Table) * (db->num_tables + 1));
+    void *tmp = c_realloc(db->tables, sizeof(Table) * (db->num_tables + 1));
     if(tmp == NULL){
         perror("Unable to allocate memory for new column types. This corrupted the memory address and the program is exiting");
         return -1;
@@ -122,32 +124,8 @@ void print_table(FILE *out, Table *table){
         char *curr = table->rows[i];
         fputc('|', out);
         for(int j = 0; j < table->num_cols; ++j){
-            switch(table->types[j]){
-                case INT:
-                    fprintf(out, " %-32d |", *(int *)curr);
-                    curr += types_sizes[INT];
-                    break;
-                case LONG:
-                    fprintf(out, " %-32ld |", *(long *)curr);
-                    curr += types_sizes[LONG];
-                    break;
-                case DOUBLE:
-                    fprintf(out, " %-32.4f |", *(double *)curr);
-                    curr += types_sizes[LONG];
-                    break;
-
-                case CHARS:
-                    fprintf(out, " %-32s |", curr);
-                    curr += types_sizes[CHARS];
-                    break;
-                case CHAR:
-                    fprintf(out, " %c                                |", *curr);
-                    curr += types_sizes[CHAR];
-                    break;
-                default:
-                    fprintf(stderr, "Unable to print type\n");
-                    exit(1);
-            }
+            fprintf(out, " %-32s |", type_to_str(curr, table->types[j]));
+            curr += types_sizes[table->types[j]];
         }
         fputc('\n', out);
     }
@@ -224,13 +202,13 @@ Table *find_table(Database *db, const char *name){
 void *alloc_row(Table *table){
     if(table == NULL) return NULL;
 
-    return calloc(1, table->row_size);
+    return c_alloc(1, table->row_size);
 }
 
 int insert_row(Table *table, void *row){
     if(table == NULL) return -1;
 
-    void *tmp = realloc(table->rows, sizeof(void *) * (table->num_rows + 1));
+    void *tmp = c_realloc(table->rows, sizeof(void *) * (table->num_rows + 1));
     if(tmp == NULL){
         fprintf(stderr, "Unable to add new row to the table\n");
         return -1;
@@ -245,28 +223,29 @@ int insert_row(Table *table, void *row){
 void delete_database(Database *db){
     if(db == NULL) return;
     delete_tables(db->tables, db->num_tables);
-    free(db);
+    c_free(db->name);
+    c_free(db);
 }
 
 void delete_table(Table *table){
     for(int j = 0; j < table->num_cols; ++j){
-        free(table->columns[j]);
+        c_free(table->columns[j]);
     }
-    free(table->columns);
+    c_free(table->columns);
     for(int j = 0; j < table->num_rows; ++j){
-        free(table->rows[j]);
+        c_free(table->rows[j]);
     }
-    free(table->rows);
-    free(table->types);
-    free(table->name);
-    free(table->indices);
-    free(table);
+    c_free(table->rows);
+    c_free(table->types);
+    c_free(table->name);
+    c_free(table->indices);
+    c_free(table);
 }
 void delete_tables(Table **tables, int num_tables){
     for(int i = 0; i < num_tables; ++i){
         delete_table(tables[i]);
     }
-    free(tables);
+    c_free(tables);
 }
 
 int save_table(FILE *db_file, Table *table){
@@ -333,24 +312,24 @@ Database *read_database(const char *file){
         perror("Unable to open file");
         return NULL;
     }
-    new_db = malloc(sizeof(Database));
+    new_db = c_malloc(sizeof(Database));
     assert(new_db);
 
     size_t string_len = 0;
     fread(&string_len, sizeof(size_t), 1, db_file);
-    new_db->name = calloc(sizeof(char), (string_len + 1));
+    new_db->name = c_alloc(sizeof(char), (string_len + 1));
     assert(new_db->name);
     fread(new_db->name, sizeof(char), string_len, db_file);
     fread(&new_db->num_tables, sizeof(int), 1, db_file);
-    new_db->tables = malloc(sizeof(Table));
+    new_db->tables = c_malloc(sizeof(Table));
     assert(new_db->tables);
 
     for(int i = 0; i < new_db->num_tables; ++i){
-        new_db->tables[i] = malloc(sizeof(Table));
+        new_db->tables[i] = c_malloc(sizeof(Table));
         Table *curr = new_db->tables[i];
         assert(curr);
         fread(&string_len, sizeof(size_t), 1, db_file);
-        curr->name = calloc(sizeof(char), (string_len + 1));
+        curr->name = c_alloc(sizeof(char), (string_len + 1));
         assert(curr->name);
         fread(curr->name, sizeof(char), string_len, db_file);
 
@@ -359,24 +338,24 @@ Database *read_database(const char *file){
         fread(&curr->num_rows, sizeof(int), 1, db_file);
         fread(&curr->num_cols, sizeof(int), 1, db_file);
 
-        curr->columns = malloc(curr->num_cols * sizeof(char *));
+        curr->columns = c_malloc(curr->num_cols * sizeof(char *));
         assert(curr->columns);
-        curr->types = malloc(curr->num_cols * sizeof(TYPES));
+        curr->types = c_malloc(curr->num_cols * sizeof(TYPES));
         assert(curr->types);
-        curr->indices = malloc(curr->num_cols * sizeof(size_t));
+        curr->indices = c_malloc(curr->num_cols * sizeof(size_t));
         assert(curr->indices);
-        curr->rows = malloc(curr->num_rows * sizeof(void *));
+        curr->rows = c_malloc(curr->num_rows * sizeof(void *));
         assert(curr->rows);
 
         for(int i = 0; i < curr->num_rows; ++i){
-            curr->rows[i] = malloc(curr->row_size);
+            curr->rows[i] = c_malloc(curr->row_size);
             assert(curr->rows[i]);
             fread(curr->rows[i], curr->row_size, 1, db_file);
         }
 
         for(int i = 0; i < curr->num_cols; ++i){
             fread(&string_len, sizeof(size_t), 1, db_file);
-            curr->columns[i] = calloc(sizeof(char), string_len + 1);
+            curr->columns[i] = c_alloc(sizeof(char), string_len + 1);
             assert(curr->columns[i]);
             fread(curr->columns[i], sizeof(char), string_len, db_file);
         }
@@ -385,5 +364,131 @@ Database *read_database(const char *file){
 
         fread(curr->indices, sizeof(size_t), curr->num_cols, db_file);
     }
+    fclose(db_file);
     return new_db;
+}
+
+Result get_columns(Database *db, const char *table, char **columns){
+    // Get the table
+    Result NoneRes = {0};
+    Table *current_table = find_table(db, table);
+    if(table == NULL){
+        perror("Could Not find Table");
+        return NoneRes;
+    }
+
+    typedef struct {
+        size_t size;
+        size_t tab_offset;
+        size_t row_offset;
+    } Index;
+
+    size_t ret_size = 0;
+    for(; columns[ret_size]; ret_size++);
+
+    Index *indices = c_alloc(ret_size, sizeof(Index));
+    if(indices == NULL){
+        perror("Unable to allocate memory");
+        return NoneRes;
+    }
+    TYPES *ret_types = c_alloc(ret_size, sizeof(Index));
+    if(ret_types == NULL){
+        perror("Unable to allocate memory");
+        return NoneRes;
+    }
+    size_t ii = 0;
+    size_t row_size = 0;
+    for(size_t i = 0; i < ret_size; ++i){
+        for(int j = 0; j < current_table->num_cols; ++j){
+            if(strcmp(columns[i], current_table->columns[j]) == 0){
+                row_size += types_sizes[current_table->types[j]];
+                ret_types[ii] = current_table->types[j];
+                indices[ii++] = (Index){
+                    types_sizes[current_table->types[j]],
+                    current_table->indices[j],
+                    row_size - types_sizes[current_table->types[j]]
+                };
+                break;
+            }else if(j == current_table->num_cols - 1){
+                fprintf(stderr, "Could not find column '%s'\n", columns[i]);
+                return NoneRes;
+            }
+        }
+    }
+
+    char **ret = c_alloc(current_table->num_rows + 1, sizeof(void *));
+    if(ret == NULL){
+        perror("Unable to allocate the return variable");
+        return NoneRes;
+    }
+    for(int i = 0; i < current_table->num_rows; ++i){
+        ret[i] = c_alloc(1, row_size);
+        if(ret[i] == NULL){
+            perror("Unable to allocate the return row variable");
+            return NoneRes;
+        }
+        for(ii = 0; ii < ret_size; ++ii){
+            memcpy(ret[i] + indices[ii].row_offset, (char *)current_table->rows[i] + indices[ii].tab_offset, indices[ii].size);
+            // printf("ii=%u, offset=%u, taboff=%u, sizes=%u\n", ii, indices[ii].row_offset, indices[ii].tab_offset, indices[ii].size);
+        }
+    }
+
+
+    Result res = {
+        current_table->num_rows,
+        ret_size,
+        (void *)ret,
+        ret_types
+    };
+    c_free(indices);
+
+    return res;
+}
+
+char print_buf[1000];
+const char *type_to_str(void *data, TYPES type){
+    switch(type){
+        case INT:
+            sprintf(print_buf, "%d", *(int *)data);
+            break;
+        case LONG:
+            sprintf(print_buf, "%ld", *(long *)data);
+            break;
+        case DOUBLE:
+            sprintf(print_buf, "%f", *(double *)data);
+            break;
+        case CHARS:
+            sprintf(print_buf, "%s", (char *)data);
+            break;
+        case CHAR:
+            sprintf(print_buf, "%c", *(char *)data);
+            break;
+        default:
+            fprintf(stderr, "Unable to print type\n");
+            exit(1);
+    }
+    return print_buf;
+}
+
+char *strdup(const char *s) {
+    size_t size = strlen(s) + 1;
+    char *p = malloc(size);
+    if (p != NULL) {
+        memcpy(p, s, size);
+    }
+    return p;
+}
+
+char *strndup(const char *s, size_t n) {
+    char *p;
+    size_t n1;
+
+    for (n1 = 0; n1 < n && s[n1] != '\0'; n1++)
+        continue;
+    p = malloc(n + 1);
+    if (p != NULL) {
+        memcpy(p, s, n1);
+        p[n1] = '\0';
+    }
+    return p;
 }

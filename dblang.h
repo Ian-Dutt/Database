@@ -2,7 +2,7 @@
 #define DB_LANG
 
 #include <stdio.h>
-#include <database.h>
+#include "database.h"
 
 typedef enum e{
     CREATE,
@@ -10,6 +10,8 @@ typedef enum e{
     SHOW,
     SAVE,
     READ,
+    FROM,
+    GET,
     TABLE,
     INSERT,
     TYPE_INT,

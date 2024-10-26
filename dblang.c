@@ -1,19 +1,21 @@
-#include <dblang.h>
+#include "dblang.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
 #include "database.h"
+#define USE_CUSTOM_ALLOC
+#include "allocator.h"
 
 void free_lang(Value *lang, int size){
     for(int i = 0; i < size; ++i){
         if(lang[i].act == TYPE_ID)
-            free(lang[i].type_id.id);
+            c_free(lang[i].type_id.id);
         else
-            free(lang[i].string);
+            c_free(lang[i].string);
     }
-    free(lang);
+    c_free(lang);
 }
 
 Action get_action_from_str(const char *str){
@@ -35,6 +37,8 @@ Action get_action_from_str(const char *str){
     else if(strcmp(str, "SHOW") == 0) result = SHOW;
     else if(strcmp(str, "SAVE") == 0) result = SAVE;
     else if(strcmp(str, "READ") == 0) result = READ;
+    else if(strcmp(str, "FROM") == 0) result = FROM;
+    else if(strcmp(str, "GET") == 0) result = GET;
     else if(strcmp(str, ":-") == 0) result = SEP;
     else if(strchr(str, '=') != NULL) result = TYPE_ID;
     else if(strcmp(str, ";") == 0) result = EXPR_END;
@@ -89,7 +93,7 @@ Value *add_value(Value *values, int *index, int *capacity, char *buffer){
 
     if(*index >= *capacity){
         *capacity = *capacity * 2;
-        void *tmp = realloc(values, *capacity * sizeof(Value));
+        void *tmp = c_realloc(values, *capacity * sizeof(Value));
         if(tmp == NULL){
             perror("Unable to create room for the program");
             free(values);
@@ -110,7 +114,7 @@ Value *lexer(FILE *in, int *size){
     int i = 0;
     int capacity = 20;
     int index = 0;
-    Value *values = malloc(sizeof(Value) * 20);
+    Value *values = c_malloc(sizeof(Value) * 20);
     while((c = fgetc(in)) != EOF){
         // Read until a space/newline
         if(isspace(c)){
@@ -177,13 +181,13 @@ int interpret_lang(Value *lang, int size){
                 }
                 // printf("table_size: %d\n",table_size);
                 const char *table_name = lang[i + 2].string;
-                TYPES *types = malloc(sizeof(TYPES) * table_size);
+                TYPES *types = c_malloc(sizeof(TYPES) * table_size);
 
                 if(types == NULL){
                     perror("Unable to allocate memory for types\n");
                     return -1;
                 }
-                char **columns = malloc(sizeof(char *) * table_size);
+                char **columns = c_malloc(sizeof(char *) * table_size);
                 if(columns == NULL){
                     perror("Unable to allocate memory for columns\n");
                     return -1;
@@ -197,8 +201,8 @@ int interpret_lang(Value *lang, int size){
                 create_table(db, table_name, (const char **)columns, types, table_size);
 
                 // print_tables(stdout, db);
-                free(types);
-                free(columns);
+                c_free(types);
+                c_free(columns);
             }else{
                 perror("Invalid CREATE command");
                 return -1;
@@ -343,6 +347,58 @@ int interpret_lang(Value *lang, int size){
 
             db = read_database(lang[i + 1].string);
         } break;
+        case FROM:{
+            if(i + 4 >= size){
+                perror("FROM expects atleast 5 types of arguments");
+                return -1;
+            }
+
+            if(lang[i + 1].act != IDENTIFIER){
+                perror("Second argument of FROM should be an IDENTIFIER");
+                return -1;
+            }
+
+            if(lang[i + 2].act == GET){
+                int j = i + 3;
+                for(; j < size && lang[j].act != EXPR_END; ++j);
+                j = j - (i + 3);
+
+                char **column_names = c_alloc(j + 1, sizeof(char *));
+                if(column_names == NULL){
+                    perror("Could not allocate column names");
+                    return -1;
+                }
+                for(int k = 0; k < j; ++k){
+                    column_names[k] = lang[k + i + 3].string;
+                }
+
+                Result result = get_columns(db, lang[i + 1].string, column_names);
+                printf("|");
+                for(size_t l = 0; l < result.cols; ++l){
+                    printf(" %-32s |", column_names[l]);
+                }
+                printf("\n");
+                for(size_t k = 0; k < result.len; ++k){
+                    char *curr = result.data[k];
+                    printf("|");
+                    for(size_t l = 0; l < result.cols; ++l){
+                        printf(" %-32s |", type_to_str(curr, result.types[l]));
+                        curr += types_sizes[result.types[l]];
+                    }
+                    printf("\n");
+                }
+                c_free(result.types);
+                c_free(column_names);
+                for(size_t l = 0; l < result.len; ++l){
+                    c_free(result.data[l]);
+                }
+                c_free(result.data);
+
+            }else{
+                perror("Unable to find FROM action");
+                return -1;
+            }
+        }
         default:
             break;
         }

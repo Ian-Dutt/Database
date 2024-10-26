@@ -33,6 +33,15 @@ typedef struct _database{
     int num_tables;
 } Database;
 
+typedef struct result
+{
+    size_t len;
+    size_t cols;
+    void **data;
+    TYPES *types;
+} Result;
+
+
 #ifdef INIT_DB_CONSTS
 size_t types_sizes[NONE_TYPE] = {
     sizeof(int),
@@ -74,5 +83,15 @@ Table *find_table(Database *db, const char *name);
 void save_database(Database *db);
 
 Database *read_database(const char *file);
+
+Result get_columns(Database *db , const char *table, char **columns); // Columns is null terminated
+
+const char *type_to_str(void *data, TYPES type);
+
+#if defined(_WIN32) || defined(WIN32)
+
+char *strdup(const char *);
+char *strndup(const char *, size_t);
+#endif
 
 #endif

@@ -3,8 +3,11 @@
 #include <string.h>
 #include "database.h"
 #include "dblang.h"
+#define USE_CUSTOM_ALLOC
+#include "allocator.h"
 
 int main(int argc, char **argv){
+    set_log_file();
     if(argc != 2){
         puts("./database [input_file]");
         return 1;
@@ -23,6 +26,8 @@ int main(int argc, char **argv){
 
     fclose(in);
     free_lang(values, size);
+    alloc_stats();
+    close_log_file();
     //Database *db = create_database("Test");
     //// FILE *fp = fopen("database.db", "w");
     //// if(fp == NULL){
