@@ -5,3 +5,4 @@ database
 *log
 libdatabase.dll
 make.ps1
+__pycache__/*
