@@ -11,7 +11,7 @@ void free_lang(Value *lang, int size){
     for(int i = 0; i < size; ++i){
         if(lang[i].act == TYPE_ID)
             c_free(lang[i].type_id.id);
-        else
+        else if(lang[i].act != TYPE_CHAR)
             c_free(lang[i].string);
     }
     c_free(lang);
@@ -62,10 +62,7 @@ int get_value_from_action(Value *value, char *buffer){
             perror("Unable to allocate new string");
         }
     }else if(value->act == VALUE_CHAR){
-        value->string = strndup(buffer + 1, strlen(buffer) - 2);
-        if(value->string == NULL){
-            perror("Unable to allocate new string");
-        }
+        value->chr = *buffer;
     }else{
         char *end;
         value->number = strtof(buffer, &end);

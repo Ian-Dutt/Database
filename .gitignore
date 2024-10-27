@@ -3,6 +3,7 @@ vscode/*
 *.o
 database
 *log
-libdatabase.dll
+*.dll
 make.ps1
 __pycache__/*
+*.so

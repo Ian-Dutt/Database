@@ -72,12 +72,15 @@ typedef enum e{
 
 typedef struct {
     Action act;
-    double number;
-    char *string;
-    struct pair {
-        Action type;
-        char *id;
-    } type_id;
+    union {
+        double number;
+        char *string;
+        char chr;
+        struct pair {
+            Action type;
+            char *id;
+        } type_id;
+    };
     
 } Value;
 
