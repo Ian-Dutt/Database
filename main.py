@@ -6,6 +6,7 @@ def main():
     db.connect("examples/Persons.db")
 
     db.show('ALL')
+    db.show('Name')
 
     db.close()
 
