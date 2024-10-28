@@ -410,6 +410,8 @@ void *interpret_lang(Database *db, Value *lang, int size){
                     printf("\n");
                 }
 
+                c_free(column_names);
+
                 return result;
 
             }else{

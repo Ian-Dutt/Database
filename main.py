@@ -6,7 +6,9 @@ def main():
     db.connect("examples/Persons.db")
 
     db.show('ALL')
-    db.show('Name')
+    db.get('Name', ['Age', 'First', 'Last', 'Middle'])
+    
+    # FROM Name GET Age First Last ;
 
     db.close()
 
